@@ -107,20 +107,21 @@ app.post('/buy', (req, res) => {
       if (!product) return res.json({ error: 'Producto no encontrado' });
       if (user.balance < product.price) return res.json({ error: 'No hay suficientes galeones' });
 
-      // Restar galeones
-      db.run(`UPDATE users SET balance = balance - ? WHERE id = ?`, [product.price, user.id]);
+      const newBalance = user.balance - product.price;
+db.run(`UPDATE users SET balance = ? WHERE id = ?`, [newBalance, user.id], function(err) {
+  if (err) return res.json({ error: 'Error al actualizar galeones' });
+  // Agregar al inventario
+  db.get(`SELECT * FROM inventory WHERE user_id = ? AND product_id = ?`, [user.id, productId], (err, inv) => {
+    if (inv) {
+      db.run(`UPDATE inventory SET quantity = quantity + 1 WHERE id = ?`, [inv.id]);
+    } else {
+      db.run(`INSERT INTO inventory (user_id, product_id) VALUES (?, ?)`, [user.id, productId]);
+    }
+    // Finalmente enviar la respuesta
+    res.json({ message: 'Compra exitosa', newBalance });
+  });
+});
 
-      // Agregar al inventario
-      db.get(`SELECT * FROM inventory WHERE user_id = ? AND product_id = ?`, [user.id, productId], (err, inv) => {
-        if (inv) {
-          db.run(`UPDATE inventory SET quantity = quantity + 1 WHERE id = ?`, [inv.id]);
-        } else {
-          db.run(`INSERT INTO inventory (user_id, product_id) VALUES (?, ?)`, [user.id, productId]);
-        }
-      });
-
-      res.json({ message: 'Compra exitosa', newBalance: user.balance - product.price });
-    });
   });
 });
 
@@ -162,11 +163,13 @@ app.post('/use', (req, res) => {
 });
 
 // Ver usuarios (solo admin)
-app.get('/users', (req, res) => {
-  db.all(`SELECT id, username, role, balance FROM users`, [], (err, rows) => {
+app.get("/users", (req, res) => {
+  db.all("SELECT id, username, role, balance FROM users", [], (err, rows) => {
+    if (err) return res.json({ error: 'Error al obtener usuarios' });
     res.json(rows);
   });
 });
+
 
 // Borrar usuario (solo admin)
 app.post('/delete-user', (req, res) => {
