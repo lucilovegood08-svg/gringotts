@@ -3,20 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <title>Tienda Hogwarts 🪄</title>
+
   <style>
-    body { font-family: 'Garamond', serif; background-color: #fdf6e3; color: #222; padding: 20px; }
-    h1, h2, h3 { color: #4b2e83; text-align: center; }
-    input, select, button { padding: 8px 10px; margin: 5px 0; border-radius: 5px; border: 1px solid #888; }
-    button { background-color: #4b2e83; color: white; cursor: pointer; }
-    button:hover { background-color: #6e3ca8; }
-    #productosPanel, #adminPanel, #adminSelector, #adminUsersPanel { margin-top: 20px; padding: 15px; border: 2px solid #4b2e83; border-radius: 10px; background-color: #f5f0ff; }
-    ul { list-style-type: none; padding-left: 0; }
-    li { margin: 5px 0; padding: 5px; background-color: #fffaf0; border: 1px solid #ddd; border-radius: 5px; }
+    body {
+      font-family: 'Garamond', serif;
+      background-color: #fdf6e3;
+      color: #222;
+      padding: 20px;
+    }
+  
+    h1, h2, h3 {
+      color: #4b2e83;
+      text-align: center;
+    }
+  
+    input, select, button {
+      padding: 8px 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      border: 1px solid #888;
+    }
+  
+    button {
+      background-color: #4b2e83;
+      color: white;
+      cursor: pointer;
+    }
+  
+    button:hover {
+      background-color: #6e3ca8;
+    }
+  
+    #productosPanel, #adminPanel, #adminSelector {
+      margin-top: 20px;
+      padding: 15px;
+      border: 2px solid #4b2e83;
+      border-radius: 10px;
+      background-color: #f5f0ff;
+    }
+  
+    ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+  
+    li {
+      margin: 5px 0;
+      padding: 5px;
+      background-color: #fffaf0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    #refreshBtn {
+      display: block;
+      margin: 20px auto;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
   </style>
+  
 </head>
 <body>
-
-<div id="galeonesDisplay" style="position: fixed; top: 110px; right: 30px; background-color: #f5f0ff; padding: 8px 12px; border: 2px solid #4b2e83; border-radius: 20px; font-weight: bold; display: none; z-index: 1000;">0</div>
+<div id="galeonesDisplay" style="
+position: fixed;
+top: 110px;
+right: 30px;
+background-color: #f5f0ff;
+padding: 8px 12px;
+border: 2px solid #4b2e83;
+border-radius: 20px;
+font-weight: bold;
+display: none;
+z-index: 1000;
+">
+0 
+</div>
 
 <h1>💰GRINGOTTS💰</h1>
 
@@ -42,6 +104,7 @@
 </div>
 
 <button id="logoutBtn" style="display:none;" onclick="cerrarSesion()">Cerrar sesión</button>
+
 <hr>
 
 <div id="adminSelector" style="display:none;">
@@ -54,20 +117,19 @@
 
 <div id="adminPanel" style="display:none;">
   <h2>Panel de Admin</h2>
+  
   <input id="gUser" placeholder="Usuario destino">
   <input id="gAmount" type="number" placeholder="Galeones">
   <button onclick="cargarGaleones()">Cargar Galeones</button>
   <p id="gRespuesta"></p>
+
   <h3>Crear producto mágico</h3>
   <input id="pName" placeholder="Nombre del producto"><br><br>
   <input id="pPrice" type="number" placeholder="Precio en galeones"><br><br>
   <button onclick="crearProducto()">Crear producto</button>
   <p id="pRespuesta"></p>
-</div>
 
-<div id="adminUsersPanel" style="display:none;">
-  <h2>Usuarios registrados</h2>
-  <ul id="listaUsuarios"></ul>
+  <div id="userListPanel" style="margin-top:20px;"></div>
 </div>
 
 <div id="productosPanel" style="display:none;">
@@ -75,211 +137,226 @@
   <h2>🛒 Productos mágicos disponibles</h2>
   <button onclick="cargarProductos()">Ver productos</button>
   <ul id="listaProductos"></ul>
+
   <hr>
+
   <h2>🎒 Mi inventario</h2>
   <button onclick="verInventario()">Ver mi inventario</button>
   <ul id="listaInventario"></ul>
 </div>
 
+<button id="refreshBtn" onclick="refreshTodo()">🔄 Refrescar Todo</button>
+
 <script>
-  function registrar() {
-    fetch('http://localhost:3000/register', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        username:document.getElementById('username').value,
-        password:document.getElementById('password').value,
-        role:document.getElementById('role').value
-      })
+const API = 'https://gringotts-7boe.onrender.com';
+
+// -------------------- CUENTAS --------------------
+function registrar() {
+  fetch(`${API}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('username').value,
+      password: document.getElementById('password').value,
+      role: document.getElementById('role').value
     })
-    .then(res=>res.json())
-    .then(data=>document.getElementById('respuesta').innerText=data.message||data.error);
-  }
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('respuesta').innerText = data.message || data.error;
+  });
+}
 
-  function login() {
-    fetch('http://localhost:3000/login',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        username:document.getElementById('loginUser').value,
-        password:document.getElementById('loginPass').value
-      })
+function login() {
+  fetch(`${API}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('loginUser').value,
+      password: document.getElementById('loginPass').value
     })
-    .then(res=>res.json())
-    .then(data=>{
-      if(data.error){
-        document.getElementById('loginRespuesta').innerText=data.error;
-      } else {
-        document.getElementById('logoutBtn').style.display='block';
-        actualizarGaleones(data.balance||0);
-        document.getElementById('registroPanel').style.display='none';
-        document.getElementById('loginPanel').style.display='none';
-        if(data.role==='admin'){
-          document.getElementById('adminSelector').style.display='block';
-          document.getElementById('productosPanel').style.display='none';
-        } else {
-          document.getElementById('productosPanel').style.display='block';
-          document.getElementById('adminSelector').style.display='none';
-        }
-      }
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data.error){
+      document.getElementById('loginRespuesta').innerText = data.error;
+      return;
+    }
+
+    document.getElementById('logoutBtn').style.display = 'block';
+    actualizarGaleones(data.balance || 0);
+
+    document.getElementById('registroPanel').style.display = 'none';
+    document.getElementById('loginPanel').style.display = 'none';
+
+    if(data.role === 'admin'){
+      document.getElementById('adminSelector').style.display = 'block';
+      document.getElementById('productosPanel').style.display = 'none';
+    } else {
+      document.getElementById('productosPanel').style.display = 'block';
+      document.getElementById('adminSelector').style.display = 'none';
+    }
+  });
+}
+
+function cerrarSesion() {
+  document.getElementById('productosPanel').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('adminSelector').style.display = 'none';
+  
+  document.getElementById('registroPanel').style.display = 'block';
+  document.getElementById('loginPanel').style.display = 'block';
+
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('username').value = '';
+  document.getElementById('password').value = '';
+  document.getElementById('role').value = 'user';
+
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('galeonesDisplay').style.display = 'none';
+}
+
+function actualizarGaleones(cantidad){
+  const galeonesDisplay = document.getElementById('galeonesDisplay');
+  galeonesDisplay.innerText = `🪙 ${cantidad} 👛`;
+  galeonesDisplay.style.display = 'block';
+}
+
+// -------------------- ADMIN --------------------
+function cargarGaleones() {
+  fetch(`${API}/add-galeones`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      username: document.getElementById('gUser').value,
+      amount: Number(document.getElementById('gAmount').value)
+    })
+  })
+  .then(res=>res.json())
+  .then(data=> document.getElementById('gRespuesta').innerText = data.message || data.error);
+}
+
+function crearProducto() {
+  fetch(`${API}/create-product`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      name: document.getElementById('pName').value,
+      price: Number(document.getElementById('pPrice').value)
+    })
+  })
+  .then(res=>res.json())
+  .then(data=> document.getElementById('pRespuesta').innerText = data.message || data.error);
+}
+
+// -------------------- PRODUCTOS --------------------
+function cargarProductos(){
+  fetch(`${API}/products`)
+  .then(res=>res.json())
+  .then(productos=>{
+    const lista = document.getElementById('listaProductos');
+    lista.innerHTML = '';
+    productos.forEach(p=>{
+      const li = document.createElement('li');
+      li.innerHTML = `${p.name} — 🪙 ${p.price} galeones
+      <button onclick="comprar(${p.id})">Comprar</button>`;
+      lista.appendChild(li);
     });
-  }
+  });
+}
 
-  function cargarGaleones() {
-    fetch('http://localhost:3000/add-galeones',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        username:document.getElementById('gUser').value,
-        amount:Number(document.getElementById('gAmount').value)
-      })
-    }).then(res=>res.json()).then(data=>document.getElementById('gRespuesta').innerText=data.message||data.error);
-  }
-
-  function crearProducto() {
-    const name=document.getElementById('pName').value;
-    const price=Number(document.getElementById('pPrice').value);
-    if(!name||!price){document.getElementById('pRespuesta').innerText='Completa todos los campos'; return;}
-    fetch('http://localhost:3000/create-product',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({name, price})
-    }).then(res=>res.json())
-      .then(data=>{
-        document.getElementById('pRespuesta').innerText=data.message||data.error;
-        document.getElementById('pName').value='';
-        document.getElementById('pPrice').value='';
-      });
-  }
-
-  function cargarProductos() {
-    fetch('http://localhost:3000/products')
-    .then(res=>res.json())
-    .then(productos=>{
-      const lista=document.getElementById('listaProductos'); lista.innerHTML='';
-      productos.forEach(p=>{
-        const li=document.createElement('li');
-        li.innerHTML=`${p.name} — 🪙 ${p.price} galeones <button onclick="comprar(${p.id})">Comprar</button>`;
-        lista.appendChild(li);
-      });
-    });
-  }
-
-  function verAdmin() { document.getElementById('adminPanel').style.display='block'; document.getElementById('productosPanel').style.display='none'; document.getElementById('adminUsersPanel').style.display='none'; }
-  function verProductos() { document.getElementById('productosPanel').style.display='block'; document.getElementById('adminPanel').style.display='none'; document.getElementById('adminUsersPanel').style.display='none'; }
-  function verUsuarios() {
-    fetch('http://localhost:3000/users')
-    .then(res=>res.json())
-    .then(users=>{
-      const lista=document.getElementById('listaUsuarios'); lista.innerHTML='';
-      users.forEach(u=>{
-        const li=document.createElement('li');
-        li.innerHTML=`${u.username} — 🪙 ${u.balance} — ${u.products.map(p=>p.name).join(', ') || 'Sin productos'} <button onclick="borrarUsuario('${u.username}')">Borrar</button>`;
-        lista.appendChild(li);
-      });
-      document.getElementById('adminUsersPanel').style.display='block';
-      document.getElementById('adminPanel').style.display='none';
-      document.getElementById('productosPanel').style.display='none';
-    });
-  }
-
-  function borrarUsuario(username){
-    if(!confirm(`Borrar usuario ${username}?`)) return;
-    fetch('http://localhost:3000/delete-user',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username})})
-    .then(res=>res.json()).then(()=>verUsuarios());
-  }
-
-  function comprar(productId){
-    fetch('http://localhost:3000/buy',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username:document.getElementById('loginUser').value, productId})
-    }).then(res=>res.json())
-      .then(data=>{
-        alert(data.message||data.error);
-        if(!data.error && data.newBalance!==undefined){actualizarGaleones(data.newBalance);}
-      });
-  }
-
-  function verInventario(){
-    const username=document.getElementById('loginUser').value;
-    fetch(`http://localhost:3000/inventory/${username}`)
-    .then(res=>res.json())
-    .then(items=>{
-      const lista=document.getElementById('listaInventario'); lista.innerHTML='';
-      if(items.length===0){ lista.innerHTML='<li>No tenés productos todavía</li>'; return;}
-      items.forEach(i=>{
-        const li=document.createElement('li');
-        li.innerHTML=`${i.name} × ${i.quantity} <button onclick="usar(${i.id})">Usar</button>`;
-        lista.appendChild(li);
-      });
-    });
-  }
-
-  function usar(inventoryId){
-    const username=document.getElementById('loginUser').value;
-    fetch('http://localhost:3000/use',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username, productId:inventoryId})})
-    .then(res=>res.json())
-    .then(data=>{
-      alert(data.message||data.error);
-      verInventario();
-      if(!data.error && data.newBalance!==undefined){actualizarGaleones(data.newBalance);}
-    });
-  }
-
-  function cerrarSesion(){
-    document.getElementById('productosPanel').style.display='none';
-    document.getElementById('adminPanel').style.display='none';
-    document.getElementById('adminSelector').style.display='none';
-    document.getElementById('adminUsersPanel').style.display='none';
-    document.getElementById('registroPanel').style.display='block';
-    document.getElementById('loginPanel').style.display='block';
-    document.getElementById('loginUser').value='';
-    document.getElementById('loginPass').value='';
-    document.getElementById('username').value='';
-    document.getElementById('password').value='';
-    document.getElementById('role').value='user';
-    document.getElementById('logoutBtn').style.display='none';
-    document.getElementById('galeonesDisplay').style.display='none';
-  }
-
-  function actualizarGaleones(cantidad){document.getElementById('galeonesDisplay').innerText=`🪙 ${cantidad} 👛`; document.getElementById('galeonesDisplay').style.display='block';}
-
-  function refrescarTodo() {
-  // Refresca galeones
+function comprar(productId){
   const username = document.getElementById('loginUser').value;
-  if(username){
-    fetch(`http://localhost:3000/login`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        username: username,
-        password: document.getElementById('loginPass').value
-      })
-    })
-    .then(res=>res.json())
-    .then(data=>{
-      if(!data.error){
-        actualizarGaleones(data.balance||0);
-      }
+  fetch(`${API}/buy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username, productId})
+  })
+  .then(res=>res.json())
+  .then(data=>{
+    alert(data.message || data.error);
+    if(!data.error && data.newBalance!==undefined) actualizarGaleones(data.newBalance);
+  });
+}
+
+// -------------------- INVENTARIO --------------------
+function verInventario(){
+  const username = document.getElementById('loginUser').value;
+  fetch(`${API}/inventory/${username}`)
+  .then(res=>res.json())
+  .then(items=>{
+    const lista = document.getElementById('listaInventario');
+    lista.innerHTML = '';
+    if(items.length===0){
+      lista.innerHTML='<li>No tenés productos todavía</li>';
+      return;
+    }
+    items.forEach(i=>{
+      const li = document.createElement('li');
+      li.innerHTML = `${i.name} × ${i.quantity} 
+      <button onclick="usar(${i.id})">Usar</button>`;
+      lista.appendChild(li);
     });
+  });
+}
 
-    // Refresca inventario
+function usar(inventoryId){
+  const username = document.getElementById('loginUser').value;
+  fetch(`${API}/use`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username, productId:inventoryId})
+  })
+  .then(res=>res.json())
+  .then(data=>{
+    alert(data.message || data.error);
     verInventario();
-    
-    // Refresca productos
-    cargarProductos();
-  }
+    if(!data.error && data.newBalance!==undefined) actualizarGaleones(data.newBalance);
+  });
+}
 
-  // Si es admin, refresca usuarios
-  const adminPanelVisible = document.getElementById('adminUsersPanel').style.display === 'block';
-  if(adminPanelVisible){
+// -------------------- PANEL USUARIOS --------------------
+function verUsuarios(){
+  fetch(`${API}/users`)
+  .then(res=>res.json())
+  .then(users=>{
+    const panel = document.getElementById('userListPanel');
+    panel.innerHTML='<h3>Usuarios registrados</h3><ul></ul>';
+    const ul = panel.querySelector('ul');
+    users.forEach(u=>{
+      const li = document.createElement('li');
+      li.innerHTML=`${u.username} — ${u.balance} galeones — Productos: ${u.products.length} 
+      <button onclick="borrarUsuario('${u.username}')">Borrar</button>`;
+      ul.appendChild(li);
+    });
+  });
+}
+
+function borrarUsuario(username){
+  fetch(`${API}/delete-user`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username})
+  })
+  .then(res=>res.json())
+  .then(data=>{
+    alert(data.message || data.error);
     verUsuarios();
-  }
+  });
+}
+
+// -------------------- PANEL DE ADMIN / PRODUCTOS --------------------
+function verAdmin(){ document.getElementById('adminPanel').style.display='block'; document.getElementById('productosPanel').style.display='none'; }
+function verProductos(){ document.getElementById('productosPanel').style.display='block'; document.getElementById('adminPanel').style.display='none'; }
+
+// -------------------- REFRESH --------------------
+function refreshTodo(){
+  if(document.getElementById('productosPanel').style.display==='block') cargarProductos();
+  if(document.getElementById('userListPanel').innerHTML!=='') verUsuarios();
+  verInventario();
 }
 
 </script>
-
-<hr>
-<button onclick="refrescarTodo()" style="background-color:#6e3ca8; padding:10px 15px; border-radius:5px; color:white; cursor:pointer;">
-🔄 Refrescar todo
-</button>
-
-
 </body>
 </html>
