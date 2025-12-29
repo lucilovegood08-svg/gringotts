@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Tienda Hogwarts 🪄</title>
+
+  <style>
+    body {
+      font-family: 'Garamond', serif;
+      background-color: #fdf6e3;
+      color: #222;
+      padding: 20px;
+    }
+  
+    h1, h2, h3 {
+      color: #4b2e83;
+      text-align: center;
+    }
+  
+    input, select, button {
+      padding: 8px 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      border: 1px solid #888;
+    }
+  
+    button {
+      background-color: #4b2e83;
+      color: white;
+      cursor: pointer;
+    }
+  
+    button:hover {
+      background-color: #6e3ca8;
+    }
+  
+    #productosPanel, #adminPanel, #adminSelector {
+      margin-top: 20px;
+      padding: 15px;
+      border: 2px solid #4b2e83;
+      border-radius: 10px;
+      background-color: #f5f0ff;
+    }
+  
+    ul {
+      list-style-type: none;
+      padding-left: 0;
+    }
+  
+    li {
+      margin: 5px 0;
+      padding: 5px;
+      background-color: #fffaf0;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+    }
+
+    #refreshBtn {
+      display: block;
+      margin: 20px auto;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+  </style>
+  
+</head>
+<body>
+<div id="galeonesDisplay" style="
+position: fixed;
+top: 110px;
+right: 30px;
+background-color: #f5f0ff;
+padding: 8px 12px;
+border: 2px solid #4b2e83;
+border-radius: 20px;
+font-weight: bold;
+display: none;
+z-index: 1000;
+">
+0 
+</div>
+
+<h1>💰GRINGOTTS💰</h1>
+
+<div id="registroPanel">
+  <h2>Crea tu cuenta</h2>
+  <input id="username" placeholder="Usuario"><br><br>
+  <input id="password" type="password" placeholder="Contraseña"><br><br>
+  <select id="role">
+    <option value="user">Usuario</option>
+    <option value="admin">Admin</option>
+  </select><br><br>
+  <button onclick="registrar()">Crear cuenta</button>
+  <p id="respuesta"></p>
+  <hr>
+</div>
+
+<div id="loginPanel">
+  <h2>Ya tengo una cuenta</h2>
+  <input id="loginUser" placeholder="Usuario"><br><br>
+  <input id="loginPass" type="password" placeholder="Contraseña"><br><br>
+  <button onclick="login()">Entrar</button>
+  <p id="loginRespuesta"></p>
+</div>
+
+<button id="logoutBtn" style="display:none;" onclick="cerrarSesion()">Cerrar sesión</button>
+
+<hr>
+
+<div id="adminSelector" style="display:none;">
+  <h3>Modo de visualización</h3>
+  <button onclick="verAdmin()">🔧 Panel Admin</button>
+  <button onclick="verProductos()">🛒 Ver productos</button>
+  <button onclick="verUsuarios()">👥 Ver usuarios</button>
+  <hr>
+</div>
+
+<div id="adminPanel" style="display:none;">
+  <h2>Panel de Admin</h2>
+  
+  <input id="gUser" placeholder="Usuario destino">
+  <input id="gAmount" type="number" placeholder="Galeones">
+  <button onclick="cargarGaleones()">Cargar Galeones</button>
+  <p id="gRespuesta"></p>
+
+  <h3>Crear producto mágico</h3>
+  <input id="pName" placeholder="Nombre del producto"><br><br>
+  <input id="pPrice" type="number" placeholder="Precio en galeones"><br><br>
+  <button onclick="crearProducto()">Crear producto</button>
+  <p id="pRespuesta"></p>
+
+  <div id="userListPanel" style="margin-top:20px;"></div>
+</div>
+
+<div id="productosPanel" style="display:none;">
+  <hr>
+  <h2>🛒 Productos mágicos disponibles</h2>
+  <button onclick="cargarProductos()">Ver productos</button>
+  <ul id="listaProductos"></ul>
+
+  <hr>
+
+  <h2>🎒 Mi inventario</h2>
+  <button onclick="verInventario()">Ver mi inventario</button>
+  <ul id="listaInventario"></ul>
+</div>
+
+<button id="refreshBtn" onclick="refreshTodo()">🔄 Refrescar Todo</button>
+
+<script>
+const API = 'https://gringotts-7boe.onrender.com';
+
+// -------------------- CUENTAS --------------------
+function registrar() {
+  fetch(`${API}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('username').value,
+      password: document.getElementById('password').value,
+      role: document.getElementById('role').value
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    document.getElementById('respuesta').innerText = data.message || data.error;
+  });
+}
+
+function login() {
+  fetch(`${API}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('loginUser').value,
+      password: document.getElementById('loginPass').value
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data.error){
+      document.getElementById('loginRespuesta').innerText = data.error;
+      return;
+    }
+
+    document.getElementById('logoutBtn').style.display = 'block';
+    actualizarGaleones(data.balance || 0);
+
+    document.getElementById('registroPanel').style.display = 'none';
+    document.getElementById('loginPanel').style.display = 'none';
+
+    if(data.role === 'admin'){
+      document.getElementById('adminSelector').style.display = 'block';
+      document.getElementById('productosPanel').style.display = 'none';
+    } else {
+      document.getElementById('productosPanel').style.display = 'block';
+      document.getElementById('adminSelector').style.display = 'none';
+    }
+  });
+}
+
+function cerrarSesion() {
+  document.getElementById('productosPanel').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'none';
+  document.getElementById('adminSelector').style.display = 'none';
+  
+  document.getElementById('registroPanel').style.display = 'block';
+  document.getElementById('loginPanel').style.display = 'block';
+
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('username').value = '';
+  document.getElementById('password').value = '';
+  document.getElementById('role').value = 'user';
+
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('galeonesDisplay').style.display = 'none';
+}
+
+function actualizarGaleones(cantidad){
+  const galeonesDisplay = document.getElementById('galeonesDisplay');
+  galeonesDisplay.innerText = `🪙 ${cantidad} 👛`;
+  galeonesDisplay.style.display = 'block';
+}
+
+// -------------------- ADMIN --------------------
+function cargarGaleones() {
+  fetch(`${API}/add-galeones`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      username: document.getElementById('gUser').value,
+      amount: Number(document.getElementById('gAmount').value)
+    })
+  })
+  .then(res=>res.json())
+  .then(data=> document.getElementById('gRespuesta').innerText = data.message || data.error);
+}
+
+function crearProducto() {
+  fetch(`${API}/create-product`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      name: document.getElementById('pName').value,
+      price: Number(document.getElementById('pPrice').value)
+    })
+  })
+  .then(res=>res.json())
+  .then(data=> document.getElementById('pRespuesta').innerText = data.message || data.error);
+}
+
+// -------------------- PRODUCTOS --------------------
+function cargarProductos(){
+  fetch(`${API}/products`)
+  .then(res=>res.json())
+  .then(productos=>{
+    const lista = document.getElementById('listaProductos');
+    lista.innerHTML = '';
+    productos.forEach(p=>{
+      const li = document.createElement('li');
+      li.innerHTML = `${p.name} — 🪙 ${p.price} galeones
+      <button onclick="comprar(${p.id})">Comprar</button>`;
+      lista.appendChild(li);
+    });
+  });
+}
+
+function comprar(productId){
+  const username = document.getElementById('loginUser').value;
+  fetch(`${API}/buy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username, productId})
+  })
+  .then(res=>res.json())
+  .then(data=>{
+    alert(data.message || data.error);
+    if(!data.error && data.newBalance!==undefined) actualizarGaleones(data.newBalance);
+  });
+}
+
+// -------------------- INVENTARIO --------------------
+function verInventario(){
+  const username = document.getElementById('loginUser').value;
+  fetch(`${API}/inventory/${username}`)
+  .then(res=>res.json())
+  .then(items=>{
+    const lista = document.getElementById('listaInventario');
+    lista.innerHTML = '';
+    if(items.length===0){
+      lista.innerHTML='<li>No tenés productos todavía</li>';
+      return;
+    }
+    items.forEach(i=>{
+      const li = document.createElement('li');
+      li.innerHTML = `${i.name} × ${i.quantity} 
+      <button onclick="usar(${i.id})">Usar</button>`;
+      lista.appendChild(li);
+    });
+  });
+}
+
+function usar(inventoryId){
+  const username = document.getElementById('loginUser').value;
+  fetch(`${API}/use`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username, productId:inventoryId})
+  })
+  .then(res=>res.json())
+  .then(data=>{
+    alert(data.message || data.error);
+    verInventario();
+    if(!data.error && data.newBalance!==undefined) actualizarGaleones(data.newBalance);
+  });
+}
+
+// -------------------- PANEL USUARIOS --------------------
+function verUsuarios(){
+  fetch(`${API}/users`)
+  .then(res=>res.json())
+  .then(users=>{
+    const panel = document.getElementById('userListPanel');
+    panel.innerHTML='<h3>Usuarios registrados</h3><ul></ul>';
+    const ul = panel.querySelector('ul');
+    users.forEach(u=>{
+      const li = document.createElement('li');
+      li.innerHTML=`${u.username} — ${u.balance} galeones — Productos: ${u.products.length} 
+      <button onclick="borrarUsuario('${u.username}')">Borrar</button>`;
+      ul.appendChild(li);
+    });
+  });
+}
+
+function borrarUsuario(username){
+  fetch(`${API}/delete-user`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username})
+  })
+  .then(res=>res.json())
+  .then(data=>{
+    alert(data.message || data.error);
+    verUsuarios();
+  });
+}
+
+// -------------------- PANEL DE ADMIN / PRODUCTOS --------------------
+function verAdmin(){ document.getElementById('adminPanel').style.display='block'; document.getElementById('productosPanel').style.display='none'; }
+function verProductos(){ document.getElementById('productosPanel').style.display='block'; document.getElementById('adminPanel').style.display='none'; }
+
+// -------------------- REFRESH --------------------
+function refreshTodo(){
+  if(document.getElementById('productosPanel').style.display==='block') cargarProductos();
+  if(document.getElementById('userListPanel').innerHTML!=='') verUsuarios();
+  verInventario();
+}
+
+</script>
+</body>
+</html>
