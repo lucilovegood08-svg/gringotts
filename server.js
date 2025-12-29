@@ -1,126 +1,182 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
-const app = express();
+const bcrypt = require('bcryptjs');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 
-// Middleware
+const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public'))); // para servir tu HTML y JS
 
-// Puerto que Render asigna automáticamente
-const PORT = process.env.PORT || 3000;
+// Base de datos SQLite
+const db = new sqlite3.Database('./gringotts.db');
 
-// Base de datos en memoria
-let users = [];
-let products = [];
-let nextProductId = 1;
-let nextInventoryId = 1;
+// Crear tablas si no existen
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT,
+    role TEXT,
+    balance INTEGER DEFAULT 0
+  )`);
 
-// ------------------ RUTAS ------------------
+  db.run(`CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    price INTEGER
+  )`);
 
-// Registro
-app.post('/register', (req, res) => {
-    const { username, password, role } = req.body;
-    if(users.find(u => u.username === username)){
-        return res.json({ error: 'Usuario ya existe' });
-    }
-    users.push({ username, password, role, balance:0, products: [] });
-    res.json({ message: 'Cuenta creada correctamente' });
+  db.run(`CREATE TABLE IF NOT EXISTS inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER DEFAULT 1,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(product_id) REFERENCES products(id)
+  )`);
 });
 
-// Login
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    const user = users.find(u => u.username === username && u.password === password);
-    if(!user) return res.json({ error: 'Usuario o contraseña incorrecta' });
-    res.json({ 
-        message: 'Login exitoso', 
-        role: user.role,
-        balance: user.balance
+// Rutas
+app.post('/register', (req, res) => {
+  const { username, password, role } = req.body;
+  const hash = bcrypt.hashSync(password, 8);
+
+  db.run(`INSERT INTO users (username, password, role) VALUES (?, ?, ?)`,
+    [username, hash, role],
+    function(err) {
+      if (err) return res.json({ error: 'Usuario ya existe' });
+      res.json({ message: 'Cuenta creada', userId: this.lastID });
     });
 });
 
-// Agregar galeones (Admin)
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, row) => {
+    if (!row) return res.json({ error: 'Usuario no encontrado' });
+
+    if (!bcrypt.compareSync(password, row.password)) {
+      return res.json({ error: 'Contraseña incorrecta' });
+    }
+
+    res.json({
+      message: 'Login exitoso',
+      role: row.role,
+      balance: row.balance,
+      userId: row.id
+    });
+  });
+});
+
+// Agregar galeones (solo admin)
 app.post('/add-galeones', (req, res) => {
-    const { username, amount } = req.body;
-    const user = users.find(u => u.username === username);
-    if(!user) return res.json({ error: 'Usuario no encontrado' });
-    user.balance += amount;
-    res.json({ message: `Se agregaron ${amount} galeones a ${username}` });
+  const { username, amount } = req.body;
+  db.run(`UPDATE users SET balance = balance + ? WHERE username = ?`, [amount, username], function(err) {
+    if (err) return res.json({ error: 'Error al cargar galeones' });
+    if (this.changes === 0) return res.json({ error: 'Usuario no encontrado' });
+    res.json({ message: 'Galeones cargados' });
+  });
 });
 
-// Crear producto (Admin)
+// Crear producto (solo admin)
 app.post('/create-product', (req, res) => {
-    const { name, price } = req.body;
-    products.push({ id: nextProductId++, name, price });
-    res.json({ message: `Producto ${name} creado` });
+  const { name, price } = req.body;
+  db.run(`INSERT INTO products (name, price) VALUES (?, ?)`, [name, price], function(err) {
+    if (err) return res.json({ error: 'Error al crear producto' });
+    res.json({ message: 'Producto creado', productId: this.lastID });
+  });
 });
 
-// Listar productos
+// Ver productos
 app.get('/products', (req, res) => {
-    res.json(products);
+  db.all(`SELECT * FROM products`, [], (err, rows) => {
+    res.json(rows);
+  });
 });
 
 // Comprar producto
 app.post('/buy', (req, res) => {
-    const { username, productId } = req.body;
-    const user = users.find(u => u.username === username);
-    const product = products.find(p => p.id === productId);
-    if(!user || !product) return res.json({ error: 'Usuario o producto no encontrado' });
-    if(user.balance < product.price) return res.json({ error: 'No tienes suficientes galeones' });
-    
-    user.balance -= product.price;
+  const { username, productId } = req.body;
 
-    // Agregar producto al inventario del usuario
-    const invItem = user.products.find(p => p.name === product.name);
-    if(invItem) invItem.quantity += 1;
-    else user.products.push({ id: nextInventoryId++, name: product.name, quantity: 1 });
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+    if (!user) return res.json({ error: 'Usuario no encontrado' });
 
-    res.json({ message: `Compraste ${product.name}`, newBalance: user.balance });
+    db.get(`SELECT * FROM products WHERE id = ?`, [productId], (err, product) => {
+      if (!product) return res.json({ error: 'Producto no encontrado' });
+      if (user.balance < product.price) return res.json({ error: 'No hay suficientes galeones' });
+
+      // Restar galeones
+      db.run(`UPDATE users SET balance = balance - ? WHERE id = ?`, [product.price, user.id]);
+
+      // Agregar al inventario
+      db.get(`SELECT * FROM inventory WHERE user_id = ? AND product_id = ?`, [user.id, productId], (err, inv) => {
+        if (inv) {
+          db.run(`UPDATE inventory SET quantity = quantity + 1 WHERE id = ?`, [inv.id]);
+        } else {
+          db.run(`INSERT INTO inventory (user_id, product_id) VALUES (?, ?)`, [user.id, productId]);
+        }
+      });
+
+      res.json({ message: 'Compra exitosa', newBalance: user.balance - product.price });
+    });
+  });
 });
 
 // Ver inventario
-app.get('/inventory/:username', (req,res)=>{
-    const user = users.find(u => u.username === req.params.username);
-    if(!user) return res.json([]);
-    res.json(user.products);
+app.get('/inventory/:username', (req, res) => {
+  const username = req.params.username;
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+    if (!user) return res.json([]);
+
+    db.all(`
+      SELECT i.id, p.name, i.quantity 
+      FROM inventory i 
+      JOIN products p ON i.product_id = p.id
+      WHERE i.user_id = ?
+    `, [user.id], (err, rows) => {
+      res.json(rows);
+    });
+  });
 });
 
 // Usar producto
-app.post('/use', (req,res)=>{
-    const { username, productId } = req.body;
-    const user = users.find(u => u.username === username);
-    if(!user) return res.json({ error: 'Usuario no encontrado' });
+app.post('/use', (req, res) => {
+  const { username, productId } = req.body;
+  db.get(`SELECT * FROM users WHERE username = ?`, [username], (err, user) => {
+    if (!user) return res.json({ error: 'Usuario no encontrado' });
 
-    const product = user.products.find(p => p.id === productId);
-    if(!product) return res.json({ error: 'Producto no encontrado' });
+    db.get(`SELECT * FROM inventory WHERE id = ? AND user_id = ?`, [productId, user.id], (err, inv) => {
+      if (!inv) return res.json({ error: 'Producto no en inventario' });
 
-    product.quantity -= 1;
-    if(product.quantity <= 0){
-        user.products = user.products.filter(p => p.id !== productId);
-    }
+      if (inv.quantity > 1) {
+        db.run(`UPDATE inventory SET quantity = quantity - 1 WHERE id = ?`, [inv.id]);
+      } else {
+        db.run(`DELETE FROM inventory WHERE id = ?`, [inv.id]);
+      }
 
-    res.json({ message: `Usaste ${product.name}`, newBalance: user.balance });
+      res.json({ message: `Usaste ${inv.id}` });
+    });
+  });
 });
 
-// Listar todos los usuarios (Admin)
-app.get('/users', (req,res)=>{
-    res.json(users.map(u=>({
-        username: u.username,
-        balance: u.balance,
-        products: u.products
-    })));
+// Ver usuarios (solo admin)
+app.get('/users', (req, res) => {
+  db.all(`SELECT id, username, role, balance FROM users`, [], (err, rows) => {
+    res.json(rows);
+  });
 });
 
-// Borrar usuario (Admin)
-app.post('/delete-user', (req,res)=>{
-    const { username } = req.body;
-    const index = users.findIndex(u=>u.username===username);
-    if(index === -1) return res.json({ error: 'Usuario no encontrado' });
-    users.splice(index,1);
-    res.json({ message: `Usuario ${username} eliminado` });
+// Borrar usuario (solo admin)
+app.post('/delete-user', (req, res) => {
+  const { userId } = req.body;
+  db.run(`DELETE FROM users WHERE id = ?`, [userId], function(err) {
+    if (err) return res.json({ error: 'Error al borrar usuario' });
+    res.json({ message: 'Usuario borrado' });
+  });
 });
 
-// Iniciar servidor
-app.listen(PORT, ()=>{
-    console.log(`Servidor corriendo en puerto ${PORT}`);
-});
+// Puerto dinámico para Render
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
