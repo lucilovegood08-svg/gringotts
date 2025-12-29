@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "username": "lu",
+      "password": "123",
+      "role": "user",
+      "balance": 300,
+      "inventory": []
+    },
+    {
+      "username": "admin",
+      "password": "admin",
+      "role": "user",
+      "balance": 0,
+      "inventory": []
+    },
+    {
+      "username": "admin2",
+      "password": "admin",
+      "role": "admin",
+      "balance": 0,
+      "inventory": []
+    }
+  ],
+  "products": []
+}
